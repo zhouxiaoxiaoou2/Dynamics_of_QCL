@@ -60,31 +60,31 @@ I0 = 1.8;               % Drive current (A)
 tspan = [0, 0.2e-6];      % Simulation time (2 μs for steady-state)
 S0 = 1e8 * (1 + 0.5*rand(N_modes, 1));
 phi0 = 2*pi*rand(N_modes, 1);  % 加相位扰动
-y0 = [1e7; 1e7; reshape([S0 phi0]', [], 1)];
+y0 = [1e7; 1e7; reshape([S0 phi0], [], 1)];
 history = @(t) y0;
 
 %% Solve DDE
 opts = ddeset('RelTol',1e-3,'AbsTol',1e-6);
 sol = dde23(@(t,y,Z) lreqns_QCL_OF_multimode(t,y,Z,I0), tau_ext, history, tspan, opts);
 
-% ========= 提取解向量 =========
+% ========= Extract solution vector =========
 t = sol.x;
 y = sol.y;
 
-S_all = y(3:2:end-1, :);      % 光子数
-phi_all = y(4:2:end, :);      % 相位
-Tspan = t;                    % 时间轴
-Ng = length(Tspan);          % FFT 点数
-dt = Tspan(2) - Tspan(1);     
-Fs = 1 / dt;                  % 采样频率 (Hz)
-f = (-Ng/2:Ng/2-1)*(Fs/Ng);   % 频率轴 (Hz)
+S_all = y(3:2:end-1, :);      % Photon number
+phi_all = y(4:2:end, :);      % Phase
+Tspan = t;                    % Time axis
+Ng = length(Tspan);          % FFT points
+dt = Tspan(2) - Tspan(1);
+Fs = 1 / dt;                  % Sampling frequency (Hz)
+f = (-Ng/2:Ng/2-1)*(Fs/Ng);   % Frequency axis (Hz)
 delta_N = y(1,:) - y(2,:);   
 middle_idx = ceil(N_modes / 2);
 
 scale_factors = (eta_0(:) .* hbar .* omega0(:)) ./ tau_p(:);  % [7×1]
-P_out_modes = scale_factors .* S_all;                         % [7×N]
+P_out_modes = scale_factors .* S_all;                 % [7×N]
 
-% ========= 构建各模式电场 P1 ~ P7 =========
+% ========= Construct electric fields for each mode P1 ~ P7 =========
 Po1 = sqrt(S_all(1,:));  Pha1 = phi_all(1,:);  wf1 = omega0(1);
 Po2 = sqrt(S_all(2,:));  Pha2 = phi_all(2,:);  wf2 = omega0(2);
 Po3 = sqrt(S_all(3,:));  Pha3 = phi_all(3,:);  wf3 = omega0(3);
@@ -101,7 +101,7 @@ P5 = Po5 .* exp(1j * wf5 * Tspan + 1j * Pha5);
 P6 = Po6 .* exp(1j * wf6 * Tspan + 1j * Pha6);
 P7 = Po7 .* exp(1j * wf7 * Tspan + 1j * Pha7);
 
-% ========= 总电场及功率 =========
+% ========= Total field =========
 P_sum = P1 + P2 + P3 + P4 + P5 + P6 + P7;
 total_power = abs(P_sum).^2;
 
@@ -123,12 +123,12 @@ omega_mat = omega0(:) * ones(1, N);     % [7 × N]
 t_mat = ones(N_modes, 1) * t_sel;       % [7 × N]
 E_field = sum(sqrt(S_all(:,idx)) .* exp(1i * (omega_mat .* t_mat + phi_all(:,idx))), 1);
 
-% 频率轴
-nu_center = nu_p;  % 中心频率 Hz
+% Frequency axis
+nu_center = nu_p;  % Center frequency Hz
 f_axis_Hz = (-N/2:N/2-1)*(Fs/N) + nu_center;
 f_axis_offset_GHz = (f_axis_Hz - nu_center) / 1e9;  % GHz offset from center frequency
 
-% FFT 处理
+% FFT processing
 spectrum = abs(fftshift(fft(E_field))).^2;
 spectrum = spectrum / max(spectrum);  % normalize
 spectrum_dB = 10 * log10(spectrum);
@@ -137,12 +137,12 @@ spectrum_dB(spectrum_dB < -50) = -50;
 
 %% ---- Power Spectrum from total output power (not E-field) ----
 idx = Tspan > max(Tspan) / 2;
-P_sel = abs(P_sum(idx)).^2;         % 瞬时功率序列（Intensity）
-% P_sel = P_sel - mean(P_sel);        % 去直流分量，减少谱泄露
+P_sel = abs(P_sum(idx)).^2;         % Instantaneous power sequence (Intensity)
+% P_sel = P_sel - mean(P_sel);        % Remove DC component to reduce spectral leakage
 
 N_P = length(P_sel);
 P_fft = abs(fftshift(fft(P_sel))).^2;
-P_fft = P_fft / max(P_fft);         % 归一化
+P_fft = P_fft / max(P_fft);         % Normalize
 f_axis = (-N_P/2:N_P/2-1) * (Fs / N_P) / 1e9;  % GHz
 
 P_fft_dB = 10 * log10(P_fft);
@@ -183,10 +183,10 @@ set(gca, 'FontSize', 10);
 % Plot 6: Continuous Absolute Optical Spectrum (no φ)连续
 subplot(3,3,4);
 
-% 1) 构建“无相位漂移”复电场包络
+% 1. Construct "no phase drift" complex electric field envelope
 E_nophase = sum( sqrt(S_all(:,idx)) .* exp(1j*(omega_mat .* t_mat)), 1 );
 
-% 2) FFT 并归一化
+% 2. FFT and normalize
 Nfft = length(E_nophase);
 Spec  = fftshift( fft(E_nophase, Nfft) / Nfft );
 Pwr   = abs(Spec).^2;
@@ -194,11 +194,11 @@ Pwr   = Pwr / max(Pwr);
 Pwr_dB= 10 * log10(Pwr);
 Pwr_dB(Pwr_dB < -60) = -60;
 
-% 3) 构造真实 THz 频率轴
+% 3. Construct true THz frequency axis
 f_axis_Hz  = (-Nfft/2 : Nfft/2-1) * (Fs / Nfft) + nu_p;  % Hz
 f_axis_THz = f_axis_Hz / 1e12;                         % THz
 
-% 4) 绘制
+% 4. Plot
 plot(f_axis_THz, Pwr_dB, 'b', 'LineWidth', 1.5);
 xlabel('Frequency (THz)',     'FontSize',10);
 ylabel('Normalized Optical Power (dB)', 'FontSize',10);
@@ -209,13 +209,13 @@ set(gca,'FontSize',10);
 
 % Plot 8: All Mode Photon Numbers
 subplot(3,3,5);
-plot(t_sel * 1e9, S_all(:,idx)');
+plot(t_sel * 1e9, S_all(:,idx));
 xlabel('Time (ns)');
 ylabel('Photon Number');
 title('All Mode Photon Numbers vs Time');
 legend(arrayfun(@(m) sprintf('Mode %d', m), 1:N_modes, 'UniformOutput', false));
 
-% plot 9:Power Spectrum (dB)'
+% plot 9:Power Spectrum (dB)
 subplot(3,3,6);
 plot(f_axis, P_fft_dB, 'LineWidth', 2);
 xlabel('Offset Frequency (GHz)');
@@ -228,39 +228,39 @@ set(gca, 'FontSize', 10);
 % Add overall title
 sgtitle(sprintf('Multi-mode QCL Feedback Simulation (L_{ext}=%.2fm, \\kappa=%.2f)', L_ext, kappa), 'FontSize', 12, 'FontWeight', 'bold');
 
-% 设置保存路径
-folder_path = 'results'; % 你可以替换为自己路径
+% Set save path
+folder_path = 'results'; % You can replace with your own path
 if ~exist(folder_path, 'dir')
     mkdir(folder_path);
 end
 
-% 增大 figure 尺寸（例如 1600x1200 像素）
+% Increase figure size (e.g., 1600x1200 pixels)
 set(gcf, 'Position', [100, 100, 1600, 1200]);
 
-% 保存为高清 PNG
+% Save as high-resolution PNG
 exportgraphics(gcf, 'Fig1_QCL_multimode.png', 'Resolution', 300);
 
-% 保存为可缩放 PDF（用于论文）
+% Save as scalable PDF (for publication)
 exportgraphics(gcf, 'Fig1_QCL_multimode.pdf', 'ContentType', 'vector');
 
-mean_photon = mean(S_all(:, idx), 2);  % 各模式平均光子数
+mean_photon = mean(S_all(:, idx), 2);  % Average photon number per mode
 disp('Average photon number per mode:');
 disp(mean_photon);
 
-% 计算各模式稳态平均功率
+% Calculate steady-state average power per mode
 steady_idx = t > max(t)/2;
 P_avg = mean(P_out_modes(:, steady_idx), 2);
 disp('Steady-state power per mode (mW):');
-disp(P_avg * 1e3); % 转换为mW
+disp(P_avg * 1e3); % Convert to mW
 
-% 绘制模式功率分布
+% Plot mode power distribution
 figure;
 bar(1:N_modes, P_avg * 1e3);
 xlabel('Mode Index');
 ylabel('Power (mW)');
 title('Mode Power Distribution');
 
-disp('Static gain per mode:'); disp(G_static');
+disp('Static gain per mode:'); disp(G_static);
 
 %% DDE Function (must be at the end or in separate file)
 function dy = lreqns_QCL_OF_multimode(t, y, Z, I0)
@@ -298,6 +298,6 @@ function dy = lreqns_QCL_OF_multimode(t, y, Z, I0)
         dphidt(m) = (alpha_factor / 2) * (M * G(m) * (N3 - N2) - 1/tau_p(m)) + fb_phi;
     end
     
-    dy = [dN3dt; dN2dt; reshape([dSdt dphidt]', [], 1)];
+    dy = [dN3dt; dN2dt; reshape([dSdt dphidt], [], 1)];
 end
 
