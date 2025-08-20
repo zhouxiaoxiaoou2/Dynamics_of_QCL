@@ -77,11 +77,11 @@ prefix = sprintf('Finj%.1fGHz_Rinj%+ddB', Delta_finj/1e9, Rinj_dB);
 period_label = classify_periodicity(t_sel, S_sel);
 fprintf('[%s] %s\n', prefix, period_label);
 
-% 创建横向排列的figure（宽度增加以适应横向排列）
-fig = figure('Visible', 'off', 'Position', [100, 100, 1200, 400]); % 宽度1200，高度400
+% create output directory
+fig = figure('Visible', 'off', 'Position', [100, 100, 1200, 400]); % Width 1200, Height 400
 
-% 子图1：时域波形 (1行3列的第1个)
-subplot(1,3,1); % 改为1行3列
+% Subplot 1: Time Domain Waveform (1 row 3 columns, 1st)
+subplot(1,3,1); % Change to 1 row 3 columns
 t_zoom = t_sel(t_sel >= 100e-9 & t_sel <= 104e-9);
 S_zoom = S_sel(t_sel >= 100e-9 & t_sel <= 104e-9);
 plot(t_zoom*1e9, S_zoom, 'b', 'LineWidth', 1.2); grid on;
@@ -90,7 +90,7 @@ title(['Time Domain - ' period_label]);
 xlim([100 104]);
 h1 = gca;
 
-% 子图2：光频谱 (1行3列的第2个)
+% Subplot 2: Optical Spectrum (1 row 3 columns, 2nd)
 subplot(1,3,2);
 plot(f_fft, fftshift(S_fft_db), 'r', 'LineWidth', 1.2); grid on;
 ylabel('Norm. Power (dB)');
@@ -98,7 +98,7 @@ title('Optical Spectrum');
 xlim([-40 40]); ylim([-120 0]);
 h2 = gca;
 
-% 子图3：拍频谱 (1行3列的第3个)
+% Subplot 3: Beat Spectrum (1 row 3 columns, 3rd)
 subplot(1,3,3);
 plot(f_beat, beat_fft_db(1:N_beat/2), 'k', 'LineWidth', 1.2); grid on;
 xlabel('Frequency (GHz)'); ylabel('Power (dB)');
@@ -106,17 +106,17 @@ title('Beat Spectrum');
 xlim([0 80]); ylim([-120 0]);
 h3 = gca;
 
-% 调整子图间距
-set(gcf, 'Position', [100, 100, 1200, 400]); % 确保足够宽度
+% Adjust subplot positions
+set(gcf, 'Position', [100, 100, 1200, 400]); % Ensure sufficient width
 set(h1, 'Position', [0.05 0.15 0.25 0.75]);  % [left bottom width height]
 set(h2, 'Position', [0.37 0.15 0.25 0.75]);
 set(h3, 'Position', [0.69 0.15 0.25 0.75]);
 
-% 保存组合图
+% Save combined figure
 saveas(fig, ['output/Horizontal_Combined_' prefix '.png']);
 savefig(fig, ['output/Horizontal_Combined_' prefix '.fig']);
 
-% 保存单独子图（可选）
+% Save individual subplots (optional)
 saveas(h1.Parent, ['output/' prefix '_TimeDomain.fig']);
 saveas(h2.Parent, ['output/' prefix '_OpticalSpectrum.fig']);
 saveas(h3.Parent, ['output/' prefix '_BeatSpectrum.fig']);

@@ -23,8 +23,8 @@ S_base = 7.3e6 * 9.25;
 % === Time grid ===
 dt = 0.1e-12;
 T_total = 1e-6;
-tspan = 0:dt:T_total;       % 时间轴
-fs = 1/dt;                  % 采样频率
+tspan = 0:dt:T_total;       % time axis
+fs = 1/dt;                  % sampling frequency
 
 %% === Scan parameters ===
 Delta_finj_list = [7.0e9];
@@ -50,7 +50,7 @@ for DFi = 1:length(Delta_finj_list)
         [t_ode, y_ode] = ode15s(@(t,y) QCL_Rate_Eqns(t,y,eta,q,tau_32,tau_31,tau_21,tau_out,...
             tau_p,tau_sp,beta,G0,m,alphaH,kc,Sinj,Delta_finj,I), tspan, y0, options);
 
-        % 插值统一时间轴
+        % Interpolate to uniform time axis
         t_uniform = tspan;
         S = interp1(t_ode, y_ode(:,4), t_uniform);
         delta_phi = interp1(t_ode, y_ode(:,5), t_uniform);
@@ -63,7 +63,7 @@ for DFi = 1:length(Delta_finj_list)
         t_phi = t_uniform(idx_phi);
         phi_sel = delta_phi(idx_phi) / pi;
 
-        window = hamming(length(S_sel))';
+        window = hamming(length(S_sel));
         S_win = S_sel .* window;
         N_fft = 2^nextpow2(length(S_win));
         f_fft = (-fs/2:fs/N_fft:fs/2-fs/N_fft)/1e9;
@@ -79,7 +79,7 @@ for DFi = 1:length(Delta_finj_list)
 
 %% === Improved Safe Naming and Folder ===
 base_name = sprintf('Finj_%.1fGHz_Sinj_%.2f', Delta_finj/1e9, Sinj/S_base);
-safe_name = regexprep(base_name, '[^a-zA-Z0-9=._-]', '_');  % 空格或符号替换成 "_"
+safe_name = regexprep(base_name, '[^a-zA-Z0-9=._-]', '_');  % Replace spaces or symbols with "_"
 
 % Create output folder for this case
 folder_path = fullfile('output', safe_name);
@@ -92,7 +92,7 @@ t_zoom = t_sel(t_sel >= 100e-9 & t_sel <= 114e-9);
 S_zoom = S_sel(t_sel >= 100e-9 & t_sel <= 114e-9);
 
 % Save plots
-fig = figure('Position', [100, 100, 1200, 500]);  % 宽度提升到1800
+fig = figure('Position', [100, 100, 1800, 500]);  % Increase width to 1800
 clf;
 ax1=subplot(1,3,1);
 plot(t_zoom*1e9, S_zoom, 'b', 'LineWidth', 1.2); grid on;
@@ -109,10 +109,10 @@ plot(f_beat, beat_fft_db(1:N_beat/2), 'b', 'LineWidth', 1.2); grid on;
 xlabel('Frequency (GHz)'); ylabel('Power (dB)');
 title('Beat Spectrum'); xlim([0 80]); ylim([-120 0]);
 
-% 手动调宽每个子图
-set(ax1, 'Position', [0.05, 0.15, 0.25, 0.75]);  % 左图
-set(ax2, 'Position', [0.37, 0.15, 0.25, 0.75]);  % 中图
-set(ax3, 'Position', [0.69, 0.15, 0.25, 0.75]);  % 右图
+% Manually adjust the width of each subplot
+set(ax1, 'Position', [0.05, 0.15, 0.25, 0.75]);  % Left plot
+set(ax2, 'Position', [0.37, 0.15, 0.25, 0.75]);  % Middle plot
+set(ax3, 'Position', [0.69, 0.15, 0.25, 0.75]);  % Right plot
 
 % Save both PNG and FIG formats
 saveas(gcf, fullfile(folder_path, 'Combined_Plots.png'));
@@ -123,19 +123,19 @@ save(fullfile(folder_path, 'data.mat'), 't_sel', 'S_sel', 'f_fft', 'S_fft_db', '
     end
 end
 
-%% === 3D 光频谱图 ===
+%% === 3D Optical Spectrum ===
 figure('Position', [100, 100, 800, 600]);
 hold on;
 colors = jet(length(Sinj_list));
 
 for Ri = 1:length(Sinj_list)
-    % 构造安全文件夹名
-    Sinj_ratio = Sinj_list(Ri);                 % 原始注入强度比例
+    % Construct safe folder name
+    Sinj_ratio = Sinj_list(Ri);                 % Original injection strength ratio
     base_name = sprintf('Finj_%.1fGHz_Sinj_%.2f', Delta_finj/1e9, Sinj_ratio);
     safe_name = regexprep(base_name, '[^a-zA-Z0-9=._-]', '_');
     folder_path = fullfile('output', safe_name);
 
-    % 加载数据文件
+    % Load data file
     data_file = fullfile(folder_path, 'data.mat');
     if exist(data_file, 'file')
         S = load(data_file, 'f_fft', 'S_fft_db');

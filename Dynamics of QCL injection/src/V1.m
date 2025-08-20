@@ -20,22 +20,22 @@ Delta_finj = 4.2e9;
 I_th = 223e-3; % Threshold current in A
 I = 1.5 * I_th; % Injected current
 
-% === 注入强度：标准表达方式 ===
-S0 = 7.3e6;                       % 自由运行稳态光子数
-Rinj_dB = 10;                      % 注入比 (单位 dB)
-Rinj = 10^(Rinj_dB / 10);         % 转换为线性比例
-Sinj = Rinj * S0;               % 注入光子数
+% === Injection ===
+S0 = 7.3e6;                       % Steady-state photon number
+Rinj_dB = 10;                      % Injection ratio (dB)
+Rinj = 10^(Rinj_dB / 10);         % Convert to linear scale
+Sinj = Rinj * S0;               % Injected photon number
 
 
 %% ========== Simulation Settings ==========
 dt = 0.1e-12;
-T_total = 1e-6; % 1微秒
-t_uniform = 0:dt:T_total; % 用于插值和FFT
+T_total = 1e-6; % 1 microsecond
+t_uniform = 0:dt:T_total; % For interpolation and FFT
 
 
-%% ========== 初始条件 ==========
-% 自由运行
-S0 = 7.3e6; % 自由运行稳态光子数 
+%% ========== Initial Conditions ==========
+% Free-running
+S0 = 7.3e6; % Steady-state photon number
 y0 = [0; 0; 0; S0*1.05; 0.1];
 
 
@@ -46,13 +46,13 @@ options = odeset('RelTol', 1e-6, 'AbsTol', 1e-9);
 tau_p,tau_sp,beta,G0,m,alphaH,kc,Sinj,Delta_finj,I), ...
 [0 T_total], y0, options);
 
-% Interpolate results to uniform time grid 数据插值处理
+% Interpolate results to uniform time grid
 S = interp1(t_ode, y_ode(:,4), t_uniform);
 delta_phi = interp1(t_ode, y_ode(:,5), t_uniform);
 
 
 
-%% ========== Select time windows ==========放大震荡区域
+%% ========== Select time windows ==========
 % For photon number (100-114 ns)
 idx_S = (t_uniform >= 100e-9) & (t_uniform <= 114e-9);
 t_S = t_uniform(idx_S);
@@ -86,7 +86,7 @@ set(gca, 'FontSize', 12);
 
 %% ========== FFT for Optical Spectrum ==========
 % --- Signal windowing ---
-window = hamming(length(S_sel))';  % Apply Hamming window to suppress spectral leakage
+window = hamming(length(S_sel));  % Apply Hamming window to suppress spectral leakage
 S_win = S_sel .* window;
 fs = 1/dt;
 N_fft = 2^nextpow2(length(S_sel));

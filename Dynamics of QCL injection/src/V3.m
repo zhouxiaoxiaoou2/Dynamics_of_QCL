@@ -1,14 +1,14 @@
 clc; clear;
 
-% ========= 扫描参数范围（更宽以观察周期倍增） =========
-Delta_finj_list = 1e9:0.5e9:10e9;         % 注入频率 detuning (Hz)
-Sinj_factor_list = 0.3:0.3:3.0;            % 注入强度倍率
+% ========= parameter scanning =========
+Delta_finj_list = 1e9:0.5e9:10e9;         %  detuning (Hz)
+Sinj_factor_list = 0.3:0.3:3.0;            % Intensity
 output_dir = 'scan_output_P_class_extended';
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
 
-% ========= 模型常数 =========
+% ========= constants =========
 q = 1.602e-19; eta = 0.5; m = 30;
 tau_32 = 2.0e-12; tau_31 = 2.4e-12; tau_21 = 0.5e-12;
 tau_out = 0.5e-12; tau_p = 3.7e-12; tau_sp = 7.0e-9;
@@ -16,13 +16,13 @@ beta = 1e-6; G0 = 5.3e4; alphaH = 0.5;
 kc0 = 2.0e10; Sinj_base = 7.3e6 * 9.25;
 I_th = 223e-3; I = 1.5 * I_th;
 
-% ========= 时间轴拉长 =========
-T_total = 3e-6;             % 模拟总时间：3 微秒
-dt = 0.1e-12;               % 时间步长
-tspan = 0:dt:T_total;       % 时间轴
-fs = 1/dt;                  % 采样频率
+% ========= time =========
+T_total = 3e-6;             % Total simulation time: 3 microseconds
+dt = 0.1e-12;               % Time step
+tspan = 0:dt:T_total;       % Time axis
+fs = 1/dt;                  % Sampling frequency
 
-% ========== 开始扫描 ==========
+% ========== start scanning ==========
 for i = 1:length(Delta_finj_list)
     for j = 1:length(Sinj_factor_list)
 
@@ -30,7 +30,7 @@ for i = 1:length(Delta_finj_list)
         Sinj = Sinj_base * Sinj_factor_list(j);
         kc = kc0;
 
-        % ========= 初始条件（加入相位扰动） =========
+        % ========= phase noise =========
 S0 = 7.3e6;
 N3_ss = (eta*I/q) / (1/tau_32 + 1/tau_31 + G0*S0);
 N2_ss = N3_ss * (tau_21/tau_32) / (1 - G0*S0*tau_21);
@@ -44,12 +44,12 @@ y0 = [N3_ss*1.01; N2_ss*0.99; N1_ss; S0*1.05; phi0];
             beta, G0, m, alphaH, kc, Sinj, Delta_finj, I), ...
             tspan, y0, opts);
 
-        % 插值统一时间轴
+        % Interpolation
         t_uniform = tspan;
         S = interp1(t_ode, y_ode(:,4), t_uniform);
         delta_phi = interp1(t_ode, y_ode(:,5), t_uniform);
 
-        % ================= 选取时间窗口 =================
+        % ================= time window =================
         idx_S = (t_uniform >= 100e-9) & (t_uniform <= 114e-9);
         t_S = t_uniform(idx_S);
         S_sel = S(idx_S)/1e6;
@@ -59,14 +59,14 @@ y0 = [N3_ss*1.01; N2_ss*0.99; N1_ss; S0*1.05; phi0];
         phi_sel = delta_phi(idx_phi) / pi;
 
         % ================= FFT：windowing + dB =================
-        window = hamming(length(S_sel))';
+        window = hamming(length(S_sel));
         S_win = S_sel .* window;
         N_fft = 2^nextpow2(length(S_win));
         f_fft = (-fs/2:fs/N_fft:fs/2-fs/N_fft)/1e9;
         S_fft = abs(fftshift(fft(S_win, N_fft))).^2;
         S_fft_db = 10*log10(S_fft / max(S_fft));
 
-        % ================= Beat Note 提取 =================
+        % ================= Beat Note Extraction =================
         envelope = abs(hilbert(S_sel));
         dS_dt = gradient(envelope, mean(diff(t_S)));
         N_beat = 2^nextpow2(length(dS_dt));
@@ -76,10 +76,10 @@ y0 = [N3_ss*1.01; N2_ss*0.99; N1_ss; S0*1.05; phi0];
         [~, idx_peak] = max(beat_fft_db(2:round(end/5)));
         beat_freq_val = f_beat(idx_peak + 1);
 
-        % ================= P分类 =================
+        % ================= P classification =================
         label = classify_periodicity(S_sel, t_S);
 
-        % ===== 图像绘制 & 保存（PNG + FIG） =====
+        % ===== figure plot=====
 title_str = sprintf('Injection: \\Deltaf = %.1f GHz, Sinj = %.1f × base, State = %s', ...
                     Delta_finj/1e9, Sinj_factor_list(j), label);
 fig = figure('Visible','off', 'Position', [100, 100, 1200, 800]);
@@ -106,9 +106,9 @@ xlabel('GHz'); ylabel('Norm. Elec. Power (dB)');
 title(sprintf('(a-iv) Beat Spectrum (%.2f GHz)', beat_freq_val));
 xlim([0 50]); ylim([-120 0]);
 
-sgtitle(title_str, 'Interpreter', 'tex');  % 更美观地支持 Δf
+sgtitle(title_str, 'Interpreter', 'tex');  % More aesthetically pleasing support for Δf
 
-% 文件名更清晰
+% Clearer file names
 basename = sprintf('df%.1fGHz_Sinj%.1f_%s', Delta_finj/1e9, Sinj_factor_list(j), label);
 saveas(fig, fullfile(output_dir, [basename '.png']));
 savefig(fig, fullfile(output_dir, [basename '.fig']));
@@ -125,18 +125,18 @@ function label = classify_periodicity(S, t)
         return;
     end
 
-    % 归一化处理
+    % Normalize
     pks = pks - mean(pks);
     pks = pks / max(abs(pks));
 
-    % 新版 P1 判定：全部峰值波动很小，且组间无结构差异
+    % New P1 criterion: all peak values fluctuate very little, and there is no structural difference between groups
     mean_diff = max(pks) - min(pks);
     if std(pks) < 0.1 && mean_diff < 0.05
         label = 'P1';
         return;
     end
 
-    % P2 判定：奇偶峰高低交替
+    % P2 judgment: odd and even peaks alternate
     odd = pks(1:2:end);
     even = pks(2:2:end);
     if std(odd - mean(odd)) < 0.05 && std(even - mean(even)) < 0.05 && abs(mean(odd) - mean(even)) > 0.05
@@ -144,13 +144,13 @@ function label = classify_periodicity(S, t)
         return;
     end
 
-    % P4 判定
+    % P4 judgment
     if N >= 12
         groups = {pks(1:4:end), pks(2:4:end), pks(3:4:end), pks(4:4:end)};
         lengths = cellfun(@length, groups);
         min_len = min(lengths);
         groups_trimmed = cellfun(@(v) v(1:min_len), groups, 'UniformOutput', false);
-        group_matrix = cell2mat(groups_trimmed');
+        group_matrix = cell2mat(groups_trimmed);
         if all(std(group_matrix, 0, 2) < 0.05)
             label = 'P4';
             return;
@@ -163,7 +163,7 @@ function label = classify_periodicity(S, t)
         lengths = cellfun(@length, groups);
         min_len = min(lengths);
         groups_trimmed = cellfun(@(v) v(1:min_len), groups, 'UniformOutput', false);
-        group_matrix = cell2mat(groups_trimmed');
+        group_matrix = cell2mat(groups_trimmed);
         if all(std(group_matrix, 0, 2) < 0.05)
             label = 'P8';
             return;

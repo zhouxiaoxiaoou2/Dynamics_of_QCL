@@ -22,32 +22,32 @@ dt = 0.1e-12;
 T_total = 1e-6;
 t_uniform = 0:dt:T_total;
 
-% === 四参数扫描设置 ===
-Delta_finj_list = [1.5e9, 3e9, 6e9];         % 频率失谐 (Hz)
-Rinj_dB_list = [-10, 0, 10];                 % 注入功率 (dB)
-alphaH_list = [0.5, 2.0, 3.5];               % 线宽增强因子
-kc_list = logspace(10, 11, 3);               % 耦合系数 (1e10~1e11)
+% === parameters ===
+Delta_finj_list = [1.5e9, 3e9, 6e9];         % detuning (Hz)
+Rinj_dB_list = [-10, 0, 10];                 % injection power (dB)
+alphaH_list = [0.5, 2.0, 3.5];               % linewidth enhancement factor
+kc_list = logspace(10, 11, 3);               % coupling coefficient (1e10~1e11)
 
-% === 创建参数组合网格 ===
+% === Create parameter grid ===
 [DF_grid, R_grid, A_grid, K_grid] = ndgrid(...
     Delta_finj_list, Rinj_dB_list, alphaH_list, kc_list);
 param_combinations = [DF_grid(:), R_grid(:), A_grid(:), K_grid(:)];
 total_combinations = size(param_combinations, 1);
 
-% === 创建输出目录 ===
+% === Create output directory ===
 output_dir = 'output_4params';
 if ~exist(output_dir, 'dir')
     mkdir(output_dir);
 end
 
-% === 并行计算准备 ===
+% === Prepare for parallel computing ===
 if isempty(gcp('nocreate'))
-    parpool(min([4, feature('numcores')])); % 根据CPU核心数开启并行
+    parpool(min([4, feature('numcores')])); % Start parallel pool based on CPU cores
 end
 
-% === 主扫描循环 (并行) ===
+% === Main scan loop (parallel) ===
 parfor combo_idx = 1:total_combinations
-    % 获取当前参数组合
+    % Get current parameter combination
     Delta_finj = param_combinations(combo_idx, 1);
     Rinj_dB = param_combinations(combo_idx, 2);
     alphaH = param_combinations(combo_idx, 3);
@@ -56,26 +56,26 @@ parfor combo_idx = 1:total_combinations
     Rinj = 10^(Rinj_dB / 10);
     Sinj = Rinj * S0;
 
-    % === 模拟求解 ===
+    % === Simulate and solve ===
     y0 = [0; 0; 0; S0*1.05; 0.1];
     options = odeset('RelTol', 1e-6, 'AbsTol', 1e-9);
     [t_ode, y_ode] = ode15s(@(t,y) QCL_Rate_Eqns(t,y,eta,q,tau_32,tau_31,tau_21,tau_out,...
         tau_p,tau_sp,beta,G0,m,alphaH,kc,Sinj,Delta_finj,I), [0 T_total], y0, options);
 
-    % === 数据分析 ===
+    % === data analysis ===
     S = interp1(t_ode, y_ode(:,4), t_uniform);
     window_idx = (t_uniform >= 100e-9) & (t_uniform <= 114e-9);
     t_sel = t_uniform(window_idx);
     S_sel = S(window_idx)/1e6;
 
-    % FFT计算
+    % FFT calculation
     fs = 1/dt;
     N_fft = 2^nextpow2(length(S_sel));
     S_fft = abs(fft(S_sel, N_fft)).^2;
     S_fft_db = 10*log10(S_fft / max(S_fft));
     f_fft = (-fs/2:fs/N_fft:fs/2 - fs/N_fft)/1e9;
 
-    % 拍频计算
+    % Beat note calculation
     env = abs(hilbert(S_sel));
     dS = gradient(env, mean(diff(t_sel)));
     N_beat = 2^nextpow2(length(dS));
@@ -83,43 +83,43 @@ parfor combo_idx = 1:total_combinations
     beat_fft_db = 10*log10(beat_fft / max(beat_fft));
     f_beat = (0:N_beat/2-1)*fs/N_beat/1e9;
 
-    % === 动态状态分类 ===
+    % === Periodicity classification ===
     period_label = classify_periodicity(t_sel, S_sel);
     param_str = sprintf('Δf=%.1fGHz R=%.0fdB α=%.1f kc=%.1e', ...
         Delta_finj/1e9, Rinj_dB, alphaH, kc);
     fprintf('[%d/%d] %s → %s\n', combo_idx, total_combinations, param_str, period_label);
 
-    % === 组合绘图 ===
+    % === Create combined plots ===
     fig = figure('Visible', 'off', 'Position', [100, 100, 900, 700]);
-    
-    % 子图1: 时域波形
+
+    % Subplot 1: Time domain waveform
     subplot(3,1,1);
     plot(t_sel*1e9, S_sel, 'b', 'LineWidth', 1);
     title(sprintf('Time Domain - %s - %s', param_str, period_label));
     xlabel('Time (ns)'); ylabel('Photon (×10^6)');
     xlim([100 114]); grid on;
-    
-    % 子图2: 光谱
+
+    % Subplot 2: Optical spectrum
     subplot(3,1,2);
     plot(f_fft, fftshift(S_fft_db), 'r');
     title('Optical Spectrum');
     xlabel('Freq (GHz)'); ylabel('Power (dB)');
     xlim([-40 40]); ylim([-120 0]); grid on;
-    
-    % 子图3: 拍频
+
+    % Subplot 3: Beat note
     subplot(3,1,3);
     plot(f_beat, beat_fft_db(1:N_beat/2), 'k');
     title('Beat Note Spectrum');
     xlabel('Freq (GHz)'); ylabel('Power (dB)');
     xlim([0 80]); ylim([-120 0]); grid on;
-    
-    % === 保存结果 ===
+
+    % === Save results ===
     fname = sprintf('DF%.1f_R%d_A%.1f_K%.0e', ...
         Delta_finj/1e9, Rinj_dB, alphaH, kc);
     saveas(fig, fullfile(output_dir, [fname '.png']));
     close(fig);
-    
-    % 保存数据（使用临时变量避免parfor冲突）
+
+    % Save data (use temporary variables to avoid parfor conflicts)
     temp_data = struct();
     temp_data.t = t_sel;
     temp_data.S = S_sel;
@@ -133,7 +133,7 @@ parfor combo_idx = 1:total_combinations
     parsave(fullfile(output_dir, [fname '.mat']), temp_data);
 end
 
-% === 辅助函数 ===
+% === Helper functions ===
 function dydt = QCL_Rate_Eqns(t, y, eta, q, tau_32, tau_31, tau_21, tau_out, ...
     tau_p, tau_sp, beta, G0, m, alphaH, kc, Sinj, Delta_finj, I)
     N3 = y(1); N2 = y(2); N1 = y(3); S = y(4); dphi = y(5);
